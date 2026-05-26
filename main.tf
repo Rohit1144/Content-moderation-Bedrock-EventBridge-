@@ -232,3 +232,136 @@ resource "aws_cloudwatch_event_rule" "review_content_rule" {
     Description = "EventBridge rule for content requiring human review"
   }
 }
+
+# ============================================================================
+# IAM ROLES AND POLICIES FOR LAMBDA FUNCTIONS
+# ============================================================================
+
+# IAM role for content analysis lambda function
+resource "aws_iam_role" "content_analysis_lambda_role" {
+  name = "${local.name_prefix}-content-analysis-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${local.name_prefix}-content-analysis-role"
+    Purpose     = "LambdaExecution"
+    Description = "IAM role for content analysis lambda function"
+  }
+}
+
+# IAM policy for content analysis lambda function
+resource "aws_iam_role_policy" "content_analysis_lambda_policy" {
+  name = "${local.name_prefix}-content-analysis-policy"
+  role = aws_iam_role.content_analysis_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/anthropic.*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:GetObjectVersion"
+        ]
+        Resource = "${aws_s3_bucket.content_bucket.arn}/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutEvents"
+        ]
+        Resource = "${aws_cloudwatch_event_bus.moderation_bus.arn}"
+      }
+    ]
+  })
+}
+
+# Attach basic execution role to content analysis lambda
+resource "aws_iam_role_policy_attachment" "content_analysis_basic_execution" {
+  role       = aws_iam_role.content_analysis_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+# IAM role for workflow lambda functions
+resource "aws_iam_role" "workflow_lambda_role" {
+  name = "${local.name_prefix}-workflow-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:AssumeRole"
+        ]
+        Principal = {
+          Service = "lambda.awsamazon.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${local.name_prefix}-workflow-role"
+    Purpose     = "LambdaExecution"
+    Description = "IAM role for workflow lambda functions"
+  }
+}
+
+# IAM policy for workflow lambda functions
+resource "aws_iam_role_policy" "workflow_lambda_policy" {
+  name = "${local.name_prefix}-workflow-policy"
+  role = aws_iam_role.workflow_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:CopyObject"
+        ]
+        Resource = [
+          "${aws_s3_bucket.content_bucket.arn}/*",
+          "${aws_s3_bucket.approved_bucket.arn}/*",
+          "${aws_s3_bucket.rejected_bucket.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = "${aws_sns_topic.moderation_notifications.arn}"
+      }
+    ]
+  })
+}
+
+# Attach basic execution role to workflow lambdas
+resource "aws_iam_role_policy_attachment" "workflow_basic_execution" {
+  role       = aws_iam_role.workflow_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
