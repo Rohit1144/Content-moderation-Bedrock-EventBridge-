@@ -144,3 +144,24 @@ resource "aws_s3_bucket_public_access_block" "rejected_bucket_pab" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+# ============================================================================
+# SNS TOPIC FOR NOTIFICATIONS
+# ============================================================================
+
+# SNS topic for moderation notifications
+resource "aws_sns_topic" "moderation_notifications" {
+  name = local.sns_topic_name
+
+  tags = {
+    Name        = local.sns_topic_name
+    Purpose     = "ModerationNotifications"
+    Description = "SNS topic for content moderation decision notifications"
+  }
+}
+
+resource "aws_sns_topic_subscription" "email_notification" {
+  topic_arn = aws_sns_topic.moderation_notifications.arn
+  protocol  = "email"
+  endpoint  = var.notification_email
+}

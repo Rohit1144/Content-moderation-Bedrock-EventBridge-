@@ -43,3 +43,14 @@ variable "s3_encryption_enabled" {
   default     = true
 
 }
+
+variable "notification_email" {
+  description = "Email address for SNS notifications about content moderation decisions"
+  type        = string
+  default     = "rohitchowdary1144@gmail.com"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.notification_email))
+    error_message = "Please provide a valid email address"
+  }
+}
