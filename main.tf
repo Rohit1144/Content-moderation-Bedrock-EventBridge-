@@ -165,3 +165,70 @@ resource "aws_sns_topic_subscription" "email_notification" {
   protocol  = "email"
   endpoint  = var.notification_email
 }
+
+# ============================================================================
+# EVENTBRIDGE CUSTOM BUS AND RULES
+# ============================================================================
+
+# custom EventBridge bus for content moderation events
+resource "aws_cloudwatch_event_bus" "moderation_bus" {
+  name = local.custom_bus_name
+
+  tags = {
+    Name        = local.custom_bus_name
+    Purpose     = "ModerationEvents"
+    Description = "Custom event bus for content moderation workflows"
+  }
+}
+
+# EventBridge rules for routing moderation decisions
+resource "aws_cloudwatch_event_rule" "approved_content_rule" {
+  name           = "${local.name_prefix}-approved-content-rule"
+  description    = "Route approved content events to processing lambda"
+  event_bus_name = aws_cloudwatch_event_bus.moderation_bus.name
+
+  event_pattern = jsonencode({
+    source      = ["content.moderation"]
+    detail-type = ["Content Approved"]
+  })
+
+  tags = {
+    Name        = "${local.name_prefix}-approved-content-rule"
+    Purpose     = "ApprovedContentRouting"
+    Description = "EventBridge rule for approved content workflow"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "rejected_content_rule" {
+  name           = "${local.name_prefix}-rejected-content-rule"
+  description    = "Route rejected content events to processing lambda"
+  event_bus_name = aws_cloudwatch_event_bus.moderation_bus.name
+
+  event_pattern = jsonencode({
+    source      = ["content.moderation"]
+    detail-type = ["Content Rejected"]
+  })
+
+  tags = {
+    Name        = "${local.name_prefix}-rejected-content-rule"
+    Purpose     = "RejectedContentRouting"
+    Description = "EventBrideg rule for rejected content workflow"
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "review_content_rule" {
+  name           = "${local.name_prefix}-review-content-rule"
+  description    = "Route review content events to processign lambda"
+  event_bus_name = aws_cloudwatch_event_bus.moderation_bus.name
+
+  event_pattern = jsonencode({
+    source      = ["content.moderation"]
+    detail-type = ["Content Review"]
+  })
+
+  tags = {
+    Name        = "${local.name_prefix}-review-content-rule"
+    Purpose     = "ReviewContentRouting"
+    Description = "EventBridge rule for content requiring human review"
+  }
+}
